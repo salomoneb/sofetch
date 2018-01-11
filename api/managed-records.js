@@ -4,50 +4,112 @@ import URI from "urijs";
 // /records endpoint
 window.path = "http://localhost:3000/records";
 
-/*
-	REQUEST OPTIONS 
-		var options = {
-			page: 	INT optional - if omitted, fetch page one
-			colors: [] optional - if omitted, fetch all colors 			
-		}
-*/
-/*
-	RESPONSE OBJECT 
-		var obj = {
-			ids: 	[] with all IDs from request
-			open: [] with all disposition values of open + a "isPrimary" key to each one indicating whether they have a red, blue or yellow 			color, 
-			closedPrimaryCount: INT total number of items that have a disposition of closed and contain a red, yellow, or blue color, 
+let options = {
+	page: 49	
+}
 
-		}
-*/
-// pass options in as param in retrieve
-	// construct url using helper func
-	// pass url to fetch
+// REPLACE RP WITH FETCH
 
-// TODO: REPLACE RP WITH FETCH
-// Check status code in initial retrieve
+retrieve(options)
 
 function retrieve(options) {
-	let records = makeUrl(options)
-	rp(records).then(result => {
-		// check status code here
-		console.log(result)
-		return result
-	}).catch(error => {
-		console.log("\x1b[41m\x1b[1m%s\x1b[0m", "Uh oh, there was an error.")
-	})
+	let endpointObject = createUri(options)
+	let endpoint = endpointObject.href()
+	rp(endpoint)
+		.then(results => {
+			console.log(endpoint)
+			// check status code here
+			results = JSON.parse(results) // remove this line in final version
+			// let transformedData = transform(results)
+			// console.log(transformedData)
+			getPageCounts(results, endpointObject)				
+		})
+		.catch(error => { console.log("\x1b[41m\x1b[1m%s\x1b[0m", "Uh oh, there was an error.\n", error.message) })
+}
+function transform(results) {
+	let transformedResults = {} || transformedResults
+	transformedResults["ids"] = results.map(item => item.id)
+	transformedResults["open"] = getOpenResults(results)
+	transformedResults["closedPrimaryCount"] = getClosedPrimaryCount(results)
+
+	return transformedResults
+}
+function getOpenResults(results) {
+	let openResults = results.filter(item => item.disposition === "open")
+	openResults.map(item => item["isPrimary"] = testPrimary(item) ? true : false)
+	return openResults
+}
+function getClosedPrimaryCount(results) {
+	let closedPrimaryColorResults = results.filter(item => item.disposition === "closed" && testPrimary(item) === true)
+	return closedPrimaryColorResults
+}
+function testPrimary(item) {
+	return (item.color === "red" || item.color === "blue" || item.color === "yellow") ? true : false
+}
+function getPageCounts(results, endpointObject, options) {
+	let unboundedEndpoint = unboundEndpoint(endpointObject).href()
+	console.log(unboundedEndpoint)
+	rp(unboundedEndpoint)
+		.then(fullResults => {
+			fullResults = JSON.parse(fullResults)
+			let fullResultsLength = fullResults.length
+			// let lowResultIndex = fullResults.findIndex(function(item) {
+			// 	return item.id === results[0].id
+			// })
+			// console.log(lowResultIndex)
+
+
+			// let highResultIndex = fullResults.findIndex( item => findHighestIndex(item, results))
+
+			// let pages = {}
+			// if (lowResultIndex < 10 || lowResultIndex === -1){
+			// 	pages["previousPage"] = null
+			// } else {
+			// 	pages["previousPage"] = Math.floor(lowResultIndex / 10)
+			// }
+			// if (highResultIndex === fullResults.length || highResultIndex === -1) {
+			// 	pages["nextPage"] = null
+			// } else {
+			// 	pages["nextPage"] = pages.previousPage + 2
+			// }
+			// console.log(pages) 
+		})
+		.catch(error => {console.log("error")})
 }
 
-function makeUrl(options) {
+function findLowestIndex(item, results) {
+	return item.id === results[0].id
+}
+function findHighestIndex(item, results) {
+	return item.id === results[results.length-1].id
+}
+function unboundEndpoint(endpointObject) {
+	if (endpointObject.hasSearch("offset")) { endpointObject.removeSearch("offset") }
+	if (endpointObject.hasSearch("limit")) { endpointObject.removeSearch("limit") }
+	return endpointObject
+}
+function createUri(options) {
 	let uri = URI("http://localhost:3000/records")
 	uri.setSearch("limit", 10)
-	if (options.page) {
-		uri.setSearch("offset", (options.page - 1) * 10)
-	}
-	if (options.colors && options.colors.length) {
-		uri.setSearch("color[]", options.colors)
-	}
-	return uri.href()
+	if (options.page) { uri.setSearch("offset", (options.page - 1) * 10) }
+	if (options.colors && options.colors.length) { uri.setSearch("color[]", options.colors) }
+	return uri
 }
+
+
+
+
+			// let pages = {}
+			// if (lowResultIndex < 10 || lowResultIndex === -1){
+			// 	pages["previousPage"] = null
+			// } else {
+			// 	pages["previousPage"] = Math.floor(lowResultIndex / 10)
+			// }
+			// if (highResultIndex === fullResults.length || highResultIndex === -1) {
+			// 	pages["nextPage"] = null
+			// } else {
+			// 	pages["nextPage"] = pages.previousPage + 2
+			// } 
+			// console.log(pages)
 
 export default retrieve;
