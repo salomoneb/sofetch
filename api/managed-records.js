@@ -5,32 +5,29 @@ import URI from "urijs";
 window.path = "http://localhost:3000/records";
 
 function retrieve(options) {
-	let uriObject = createUri(options)
-	let endpoint = uriObject.href()
-	let unboundedEndpoint = increaseEndpoint(uriObject).href()
-	let results = fetchLinkResults(endpoint, unboundedEndpoint)
-	
-	return Promise.all(results)
-		.then(allResults => handleResults(allResults))
+	let fetchPromises = fetchLinkResults(options)
+	return Promise.all(fetchPromises)
+		.then(fetchPromises => handleResults(fetchPromises, options))
+		.then(allResults => allResults)
 		.catch(error => console.error(error))
 }
-function fetchLinkResults(endpoint, unboundedEndpoint) {
-	let fetchedResults =[endpoint, unboundedEndpoint].map(link => {
+function fetchLinkResults(options) {
+	let endpoints = getEndpointLinks(options)
+	let fetchedResults = endpoints.map(link => {
 		return fetch(link)
-		.then(response => response.json())
-		.then(jsonResponse => jsonResponse)
+			.then(response => response.json())
 	})
 	return fetchedResults
 }
-function handleResults(results) {
+function handleResults(results, options) {
 	let pageResults = results[0]
 	let allResults = results[1]
-	let transformedResults = transform(pageResults, allResults)
+	let transformedResults = transform(pageResults, allResults, options)
 	return transformedResults	
 }
-function transform(pageResults, allResults) {
+function transform(pageResults, allResults, options) {
 	let finalObject = {}
-	let pagination = getPagination(pageResults, allResults)
+	let pagination = getPagination(pageResults, allResults, options)
 	finalObject["ids"] = pageResults.map(item => item.id)
 	finalObject["open"] = getOpenResults(pageResults)
 	finalObject["closedPrimaryCount"] = getClosedPrimaryCount(pageResults)	
@@ -38,14 +35,26 @@ function transform(pageResults, allResults) {
 	finalObject["nextPage"] = pagination.nextPage
 	return finalObject
 }
-function createUri(options) {
-	let uri = URI("http://localhost:3000/records")
-	uri.setSearch("limit", 10)
+function getEndpointLinks(options) {
+	let endpointObject = constructBaseEndpoint(options)
+	let endpoint = endpointObject.href()
+	let unboundedEndpoint = increaseEndpoint(endpointObject).href()
+	let endpointLinks = [endpoint, unboundedEndpoint]
+	return endpointLinks
+}
+function constructBaseEndpoint(options) {
+	let baseEndpoint = URI("http://localhost:3000/records")
+	baseEndpoint.setSearch("limit", 10)
 	if (options) {
-		if (options.page) { uri.setSearch("offset", (options.page - 1) * 10) }
-		if (options.colors && options.colors.length) { uri.setSearch("color[]", options.colors) }		
+		if (options.page) { baseEndpoint.setSearch("offset", (options.page - 1) * 10) }
+		if (options.colors && options.colors.length) { baseEndpoint.setSearch("color[]", options.colors) }		
 	}
-	return uri
+	return baseEndpoint
+}
+function increaseEndpoint(endpointObject) {
+	endpointObject.setSearch("limit", 1000)
+	if (endpointObject.hasSearch("offset")) { endpointObject.removeSearch("offset") }
+	return endpointObject
 }
 function getOpenResults(results) {
 	let openResults = results.filter(item => item.disposition === "open")
@@ -56,8 +65,11 @@ function getClosedPrimaryCount(results) {
 	let closedPrimaryColorResults = results.filter(item => item.disposition === "closed" && testPrimary(item) === true)
 	return closedPrimaryColorResults.length
 }
-function getPagination(pageResults, allResults) {
+function getPagination(pageResults, allResults, options) {
 	var pagination = {}
+	let totalPages = Math.ceil(allResults.length/10)
+	let pageRequested
+	if (options && options.page) pageRequested = options.page
 	if (pageResults.length) {	
 		let lowestResultIndex = allResults.findIndex( item => lowIndexHelper(item, pageResults))
 		let highResultIndex = allResults.findIndex( item => highIndexHelper(item, pageResults))
@@ -73,10 +85,18 @@ function getPagination(pageResults, allResults) {
 		} else {
 			pagination["nextPage"] = Math.floor(highResultIndex / 10) + 2
 		}
-	} else {
-		pagination = {
-			previousPage: null, 
-			nextPage: null
+	} 
+	else {
+		if (pageRequested === (totalPages + 1)) {
+			pagination = {
+				previousPage: totalPages, 
+				nextPage: null
+			}
+		} else {
+			pagination = {
+				previousPage: null, 
+				nextPage: null
+			}			
 		}
 	}
 	return pagination
@@ -90,12 +110,6 @@ function lowIndexHelper(item, pageResults) {
 }
 function highIndexHelper(item, pageResults) {
 	return item.id === pageResults[pageResults.length-1].id
-}
-// Increase the endpoint limit so we can fetch all results
-function increaseEndpoint(uriObject) {
-	uriObject.setSearch("limit", 1000)
-	if (uriObject.hasSearch("offset")) { uriObject.removeSearch("offset") }
-	return uriObject
 }
 
 export default retrieve;
