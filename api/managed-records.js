@@ -5,13 +5,16 @@ window.path = "http://localhost:3000/records"
 
 function retrieve(options) {
 	let fetchPromises = fetchLinkResults(options)
-	return Promise.all(fetchPromises)
+	return promiseChain(fetchPromises, options)
+}
+function promiseChain(fetchPromises, options) {
+	let promises = Promise.all(fetchPromises)
 		.then(fetchPromises => handleResults(fetchPromises, options))
-		.then(allResults => allResults)
 		.catch(error => {
 			console.log("\x1b[31m%s%s\x1b[0m", "An error occurred processing fetched results. " , error.message)
 			console.log(error)
 		})
+	return promises
 }
 function fetchLinkResults(options) {
 	let endpoints = getEndpointLinks(options)
@@ -25,8 +28,8 @@ function fetchLinkResults(options) {
 	return fetchedResults
 }
 function handleResults(results, options) {
-	let pageResults = results[0]
-	let allResults = results[1]
+	let pageResults, allResults
+	[pageResults, allResults] = results
 	let transformedResults = transform(pageResults, allResults, options)
 	return transformedResults	
 }
@@ -45,46 +48,53 @@ function getOpenResults(results) {
 	openResults.map(item => item["isPrimary"] = testPrimary(item) ? true : false)
 	return openResults
 }
+// Check number of closed results containing primary colors
 function getClosedPrimaryCount(results) {
 	let closedPrimaryColorResults = results.filter(item => item.disposition === "closed" && testPrimary(item) === true)
 	return closedPrimaryColorResults.length
 }
+// Handle pagination conditions, return an object with pagination info
 function getPagination(pageResults, allResults, options) {
 	var pagination = {}
-	let totalPages = Math.ceil(allResults.length/10)
-	let pageRequested
-	if (options && options.page) pageRequested = options.page
 	if (pageResults.length) {	
-		let lowestResultIndex = allResults.findIndex( item => lowIndexHelper(item, pageResults))
-		let highResultIndex = allResults.findIndex( item => highIndexHelper(item, pageResults))
-		// Check low results
-		if (lowestResultIndex < 10 || lowestResultIndex === -1) {
-			pagination["previousPage"] = null
-		} else {
-			pagination["previousPage"] = Math.floor(lowestResultIndex / 10)
-		}
-		// Check high results
-		if (highResultIndex === allResults.length - 1 || highResultIndex === -1) {
-			pagination["nextPage"] = null
-		} else {
-			pagination["nextPage"] = Math.floor(highResultIndex / 10) + 2
-		}
-	} 
-	else {
-		if (pageRequested === (totalPages + 1)) {
-			pagination = {
-				previousPage: totalPages, 
-				nextPage: null
-			}
-		} else {
-			pagination = {
-				previousPage: null, 
-				nextPage: null
-			}			
-		}
+		handleNonEmptyPages(pageResults, allResults, pagination)
+	} else {
+		handleEmptyPages(pageResults, allResults, options, pagination)
 	}
 	return pagination
 }
+// If there are results  
+function handleNonEmptyPages(pageResults, allResults, pagination) {
+	let lowestResultIndex = allResults.findIndex( item => lowIndexHelper(item, pageResults))
+	let highResultIndex = allResults.findIndex( item => highIndexHelper(item, pageResults))
+	if (lowestResultIndex < 10 || lowestResultIndex === -1) {
+		pagination["previousPage"] = null
+	} else {
+		pagination["previousPage"] = Math.floor(lowestResultIndex / 10)
+	}
+	if (highResultIndex === allResults.length - 1 || highResultIndex === -1) {
+		pagination["nextPage"] = null
+	} else {
+		pagination["nextPage"] = Math.floor(highResultIndex / 10) + 2
+	}	
+	return pagination
+}
+// If there are no results
+function handleEmptyPages(pageResults, allResults, options, pagination) {
+	let totalPages = Math.ceil(allResults.length/10)
+	let pageRequested
+	if (options && options.page) {
+		pageRequested = options.page
+	}
+	if (pageRequested === (totalPages + 1)) {
+		pagination["previousPage"] = totalPages 
+	} else {
+		pagination["previousPage"] = null 
+	}
+	pagination["nextPage"] = null	
+	return pagination
+}
+// Check if our results contain a primary color
 function testPrimary(item) {
 	return (item.color === "red" || item.color === "blue" || item.color === "yellow") ? true : false
 }
@@ -95,6 +105,7 @@ function lowIndexHelper(item, pageResults) {
 function highIndexHelper(item, pageResults) {
 	return item.id === pageResults[pageResults.length-1].id
 }
+// Create our initial endpoint
 function constructBaseEndpoint(options) {
 	let baseEndpoint = URI(window.path)
 	baseEndpoint.setSearch("limit", 10)
@@ -104,17 +115,18 @@ function constructBaseEndpoint(options) {
 	}
 	return baseEndpoint
 }
-function getEndpointLinks(options) {
-	let endpointObject = constructBaseEndpoint(options)
-	let endpoint = endpointObject.href()
-	let unboundedEndpoint = increaseEndpoint(endpointObject).href()
-	let endpointLinks = [endpoint, unboundedEndpoint]
-	return endpointLinks
-}
+// Take our initial endpoint and increase the limit so we can retrieve all results
 function increaseEndpoint(endpointObject) {
 	endpointObject.setSearch("limit", 1000)
 	if (endpointObject.hasSearch("offset")) endpointObject.removeSearch("offset")
 	return endpointObject
+}
+// Get both endpoint URLs, return them in an array
+function getEndpointLinks(options) {
+	let endpointObject = constructBaseEndpoint(options)
+	let endpoint = endpointObject.href()
+	let unboundedEndpoint = increaseEndpoint(endpointObject).href()
+	return [endpoint, unboundedEndpoint]
 }
 
 export default retrieve;
