@@ -1,21 +1,40 @@
 import fetch from "../util/fetch-fill";
 import URI from "urijs";
 
-// /records endpoint
-window.path = "http://localhost:3000/records";
+window.path = "http://localhost:3000/records"
 
 function retrieve(options) {
 	let fetchPromises = fetchLinkResults(options)
 	return Promise.all(fetchPromises)
 		.then(fetchPromises => handleResults(fetchPromises, options))
 		.then(allResults => allResults)
-		.catch(error => console.error(error))
+		.catch(error => {
+			console.log("error three")
+			return error
+		})
 }
 function fetchLinkResults(options) {
 	let endpoints = getEndpointLinks(options)
-	let fetchedResults = endpoints.map(link => {
+	let fetchedResults = endpoints.map((link, index) => {
 		return fetch(link)
+			.then(response => {
+				if (!response.ok) console.log("ok")
+				// if (!response.ok) {
+				// 	console.log("error one")
+				// 	if (index === 0) {
+				// 		return fetch("http://localhost:3000/records?limit=10")						
+				// 	}
+				// 	if (index === 1) {
+				// 		return fetch("http://localhost:3000/records?limit=1000")	
+				// 	}
+				// }
+				return response
+			})
 			.then(response => response.json())
+			.catch(error => {
+				console.log("error two")
+				return error
+			})
 	})
 	return fetchedResults
 }
@@ -43,7 +62,7 @@ function getEndpointLinks(options) {
 	return endpointLinks
 }
 function constructBaseEndpoint(options) {
-	let baseEndpoint = URI("http://localhost:3000/records")
+	let baseEndpoint = URI(window.path)
 	baseEndpoint.setSearch("limit", 10)
 	if (options) {
 		if (options.page) { baseEndpoint.setSearch("offset", (options.page - 1) * 10) }
