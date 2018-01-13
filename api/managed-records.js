@@ -3,92 +3,79 @@ import URI from "urijs";
 
 window.path = "http://localhost:3000/records"
 
+// Entry
 function retrieve(options) {
 	let fetchPromises = fetchLinkResults(options)
+	console.log(transformPromises(fetchPromises))
+	return transformPromises(fetchPromises)
+}
+// Main processing 
+function transformPromises(fetchPromises) {
 	return Promise.all(fetchPromises)
-		.then(fetchPromises => handleResults(fetchPromises, options))
+		.then(fetchPromises => handleJson(fetchPromises, options))
 		.then(allResults => allResults)
 		.catch(error => {
-			console.log("error three")
-			return error
-		})
+			console.log("\x1b[31m%s%s\x1b[0m", "An error occurred processing fetched results. " , error.message)
+			console.log(error)
+		})	
 }
+// Takes each endpoint and returns an array of JSON promises
 function fetchLinkResults(options) {
 	let endpoints = getEndpointLinks(options)
 	let fetchedResults = endpoints.map((link, index) => {
 		return fetch(link)
-			.then(response => {
-				if (!response.ok) console.log("ok")
-				// if (!response.ok) {
-				// 	console.log("error one")
-				// 	if (index === 0) {
-				// 		return fetch("http://localhost:3000/records?limit=10")						
-				// 	}
-				// 	if (index === 1) {
-				// 		return fetch("http://localhost:3000/records?limit=1000")	
-				// 	}
-				// }
-				return response
+		.then(response => {
+				if (!response.ok) {
+					throw new Error(response.status)
+				}
+				return response.json()
 			})
-			.then(response => response.json())
 			.catch(error => {
-				console.log("error two")
-				return error
+				console.log("\x1b[31m%s%s\x1b[0m", "A fetch call failed: ", error)
 			})
 	})
 	return fetchedResults
 }
-function handleResults(results, options) {
+// Passes JSON data to be processed
+function handleJson(results, options) {
 	let pageResults = results[0]
 	let allResults = results[1]
-	let transformedResults = transform(pageResults, allResults, options)
+	let transformedResults = transformJson(pageResults, allResults, options)
 	return transformedResults	
 }
-function transform(pageResults, allResults, options) {
+// Process data and transform into our final result
+function transformJson(pageResults, allResults, options) {
 	let finalObject = {}
-	let pagination = getPagination(pageResults, allResults, options)
 	finalObject["ids"] = pageResults.map(item => item.id)
 	finalObject["open"] = getOpenResults(pageResults)
 	finalObject["closedPrimaryCount"] = getClosedPrimaryCount(pageResults)	
+	let pagination = getPagination(pageResults, allResults, options)
 	finalObject["previousPage"] = pagination.previousPage
 	finalObject["nextPage"] = pagination.nextPage
 	return finalObject
 }
-function getEndpointLinks(options) {
-	let endpointObject = constructBaseEndpoint(options)
-	let endpoint = endpointObject.href()
-	let unboundedEndpoint = increaseEndpoint(endpointObject).href()
-	let endpointLinks = [endpoint, unboundedEndpoint]
-	return endpointLinks
-}
-function constructBaseEndpoint(options) {
-	let baseEndpoint = URI(window.path)
-	baseEndpoint.setSearch("limit", 10)
-	if (options) {
-		if (options.page) { baseEndpoint.setSearch("offset", (options.page - 1) * 10) }
-		if (options.colors && options.colors.length) { baseEndpoint.setSearch("color[]", options.colors) }		
-	}
-	return baseEndpoint
-}
-function increaseEndpoint(endpointObject) {
-	endpointObject.setSearch("limit", 1000)
-	if (endpointObject.hasSearch("offset")) { endpointObject.removeSearch("offset") }
-	return endpointObject
-}
+// Helper function for open results
 function getOpenResults(results) {
 	let openResults = results.filter(item => item.disposition === "open")
 	openResults.map(item => item["isPrimary"] = testPrimary(item) ? true : false)
 	return openResults
 }
+// Helper function for closed, primary color results
 function getClosedPrimaryCount(results) {
 	let closedPrimaryColorResults = results.filter(item => item.disposition === "closed" && testPrimary(item) === true)
 	return closedPrimaryColorResults.length
 }
+// Constructs and returns object with pagination info
 function getPagination(pageResults, allResults, options) {
 	var pagination = {}
 	let totalPages = Math.ceil(allResults.length/10)
 	let pageRequested
 	if (options && options.page) pageRequested = options.page
+	
+	pageConditions(pageResults, allResults, pagination)
+	return pagination
+}
+function pageConditions(pageResults, allResults, pagination) {
 	if (pageResults.length) {	
 		let lowestResultIndex = allResults.findIndex( item => lowIndexHelper(item, pageResults))
 		let highResultIndex = allResults.findIndex( item => highIndexHelper(item, pageResults))
@@ -118,7 +105,6 @@ function getPagination(pageResults, allResults, options) {
 			}			
 		}
 	}
-	return pagination
 }
 function testPrimary(item) {
 	return (item.color === "red" || item.color === "blue" || item.color === "yellow") ? true : false
@@ -129,6 +115,27 @@ function lowIndexHelper(item, pageResults) {
 }
 function highIndexHelper(item, pageResults) {
 	return item.id === pageResults[pageResults.length-1].id
+}
+function constructBaseEndpoint(options) {
+	let baseEndpoint = URI("http://localhost:3000/records")
+	baseEndpoint.setSearch("limit", 10)
+	if (options) {
+		if (options.page) { baseEndpoint.setSearch("offset", (options.page - 1) * 10) }
+		if (options.colors && options.colors.length) { baseEndpoint.setSearch("color[]", options.colors) }		
+	}
+	return baseEndpoint
+}
+function getEndpointLinks(options) {
+	let endpointObject = constructBaseEndpoint(options)
+	let endpoint = endpointObject.href()
+	let unboundedEndpoint = increaseEndpoint(endpointObject).href()
+	let endpointLinks = [endpoint, unboundedEndpoint]
+	return endpointLinks
+}
+function increaseEndpoint(endpointObject) {
+	endpointObject.setSearch("limit", 1000)
+	if (endpointObject.hasSearch("offset")) { endpointObject.removeSearch("offset") }
+	return endpointObject
 }
 
 export default retrieve;
