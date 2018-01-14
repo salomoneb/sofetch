@@ -3,21 +3,21 @@ import URI from "urijs";
 
 window.path = "http://localhost:3000/records"
 
-function retrieve(options) {
-	const fetchPromises = fetchLinkResults(options)
-	return promiseChain(fetchPromises, options)
+function retrieve({page, colors} = {}) {
+	const fetchPromises = fetchLinkResults(page, colors)
+	return promiseChain(fetchPromises, page)
 }
-function promiseChain(fetchPromises, options) {
+function promiseChain(fetchPromises, page) {
 	const promises = Promise.all(fetchPromises)
-		.then(fetchPromises => handleResults(fetchPromises, options))
+		.then(fetchPromises => handleResults(fetchPromises, page))
 		.catch(error => {
 			console.log("\x1b[31m%s%s\x1b[0m", "An error occurred processing fetched results. " , error.message)
 			console.log(error)
 		})
 	return promises
 }
-function fetchLinkResults(options) {
-	const endpoints = getEndpointLinks(options)
+function fetchLinkResults(page, colors) {
+	const endpoints = getEndpointLinks(page, colors)
 	const fetchedResults = endpoints.map((link, index) => {
 		return fetch(link)
 			.then(response => response.json())
@@ -27,21 +27,21 @@ function fetchLinkResults(options) {
 	})
 	return fetchedResults
 }
-function handleResults(results, options) {
+function handleResults(results, page) {
 	let pageResults, allResults
 	[pageResults, allResults] = results
-	const transformedResults = transform(pageResults, allResults, options)
+	const transformedResults = transform(pageResults, allResults, page)
 	return transformedResults	
 }
-function transform(pageResults, allResults, options) {
-	const finalObject = {}
-	const pagination = getPagination(pageResults, allResults, options)
-	finalObject["ids"] = getPageResults(pageResults)
-	finalObject["open"] = getOpenResults(pageResults)
-	finalObject["closedPrimaryCount"] = getClosedPrimaryCount(pageResults)
-	// ({ previousPage: finalObject["previousPage"], nextPage: finalObject["nextPage"] } = pagination)
-	finalObject["previousPage"] = pagination.previousPage
-	finalObject["nextPage"] = pagination.nextPage
+function transform(pageResults, allResults, page) {
+	const finalObject = {}	
+	finalObject.ids = getPageResults(pageResults)
+	finalObject.open = getOpenResults(pageResults)
+	finalObject.closedPrimaryCount = getClosedPrimaryCount(pageResults)
+	// Pagination
+	const pagination = getPagination(pageResults, allResults, page)
+	let previousPage, nextPage
+	({previousPage: finalObject.previousPage, nextPage: finalObject.nextPage} = pagination)
 	return finalObject
 }
 function getPageResults(pageResults) {
@@ -58,12 +58,12 @@ function getClosedPrimaryCount(results) {
 	return closedPrimaryColorResults.length
 }
 // Handle pagination conditions, return an object with pagination info
-function getPagination(pageResults, allResults, options) {
+function getPagination(pageResults, allResults, page) {
 	var pagination = {}
 	if (pageResults.length) {	
 		handleNonEmptyPages(pageResults, allResults, pagination)
 	} else {
-		handleEmptyPages(pageResults, allResults, options, pagination)
+		handleEmptyPages(pageResults, allResults, pagination, page)
 	}
 	return pagination
 }
@@ -84,12 +84,10 @@ function handleNonEmptyPages(pageResults, allResults, pagination) {
 	return pagination
 }
 // If there are no results
-function handleEmptyPages(pageResults, allResults, options, pagination) {
+function handleEmptyPages(pageResults, allResults, pagination, page, colors) {
 	const totalPages = Math.ceil(allResults.length/10)
 	let pageRequested
-	if (options && options.page) {
-		pageRequested = options.page
-	}
+	if (page) pageRequested = page
 	if (pageRequested === (totalPages + 1)) {
 		pagination["previousPage"] = totalPages 
 	} else {
@@ -99,24 +97,23 @@ function handleEmptyPages(pageResults, allResults, options, pagination) {
 	return pagination
 }
 // Check if our results contain a primary color
-function testPrimary(item) {
-	return (item.color === "red" || item.color === "blue" || item.color === "yellow") ? true : false
+function testPrimary({color} = {}) {
+	return (color === "red" || color === "blue" || color === "yellow") ? true : false
 }
 // Get the indices of the lowest and highest paginated results within the full results
-function lowIndexHelper(item, pageResults) {
-	return item.id === pageResults[0].id
+function lowIndexHelper({id} = {}, pageResults) {
+	return id === pageResults[0].id
 }
-function highIndexHelper(item, pageResults) {
-	return item.id === pageResults[pageResults.length-1].id
+function highIndexHelper({id} = {}, pageResults) {
+	return id === pageResults[pageResults.length-1].id
 }
 // Create our initial endpoint
-function constructBaseEndpoint(options) {
+function constructBaseEndpoint(page, colors) {
 	const baseEndpoint = URI(window.path)
 	baseEndpoint.setSearch("limit", 10)
-	if (options) {
-		if (options.page) baseEndpoint.setSearch("offset", (options.page - 1) * 10)
-		if (options.colors && options.colors.length) baseEndpoint.setSearch("color[]", options.colors)		
-	}
+	if (page !== undefined) baseEndpoint.setSearch("offset", (page - 1) * 10)
+	if (colors !== undefined) baseEndpoint.setSearch("color[]", colors)		
+
 	return baseEndpoint
 }
 // Take our initial endpoint and increase the limit so we can retrieve all results
@@ -126,8 +123,8 @@ function increaseEndpoint(endpointObject) {
 	return endpointObject
 }
 // Get both endpoint URLs, return them in an array
-function getEndpointLinks(options) {
-	const endpointObject = constructBaseEndpoint(options)
+function getEndpointLinks(page,colors) {
+	const endpointObject = constructBaseEndpoint(page, colors)
 	const endpoint = endpointObject.href()
 	const unboundedEndpoint = increaseEndpoint(endpointObject).href()
 	return [endpoint, unboundedEndpoint]
