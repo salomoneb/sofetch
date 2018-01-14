@@ -38,7 +38,6 @@ function transform(pageResults, allResults, page) {
 	finalObject.ids = getPageResults(pageResults)
 	finalObject.open = getOpenResults(pageResults)
 	finalObject.closedPrimaryCount = getClosedPrimaryCount(pageResults)
-	// Pagination
 	const pagination = getPagination(pageResults, allResults, page)
 	let previousPage, nextPage
 	({previousPage: finalObject.previousPage, nextPage: finalObject.nextPage} = pagination)
@@ -49,7 +48,7 @@ function getPageResults(pageResults) {
 }
 function getOpenResults(results) {
 	const openResults = results.filter(item => item.disposition === "open")
-	openResults.map(item => item["isPrimary"] = testPrimary(item) ? true : false)
+	openResults.map(item => item.isPrimary = testPrimary(item) ? true : false)
 	return openResults
 }
 // Check number of closed results containing primary colors
@@ -72,14 +71,14 @@ function handleNonEmptyPages(pageResults, allResults, pagination) {
 	const lowestResultIndex = allResults.findIndex( item => lowIndexHelper(item, pageResults))
 	const highResultIndex = allResults.findIndex( item => highIndexHelper(item, pageResults))
 	if (lowestResultIndex < 10 || lowestResultIndex === -1) {
-		pagination["previousPage"] = null
+		pagination.previousPage = null
 	} else {
-		pagination["previousPage"] = Math.floor(lowestResultIndex / 10)
+		pagination.previousPage = Math.floor(lowestResultIndex / 10)
 	}
 	if (highResultIndex === allResults.length - 1 || highResultIndex === -1) {
-		pagination["nextPage"] = null
+		pagination.nextPage = null
 	} else {
-		pagination["nextPage"] = Math.floor(highResultIndex / 10) + 2
+		pagination.nextPage = Math.floor(highResultIndex / 10) + 2
 	}	
 	return pagination
 }
@@ -89,11 +88,11 @@ function handleEmptyPages(pageResults, allResults, pagination, page, colors) {
 	let pageRequested
 	if (page) pageRequested = page
 	if (pageRequested === (totalPages + 1)) {
-		pagination["previousPage"] = totalPages 
+		pagination.previousPage = totalPages 
 	} else {
-		pagination["previousPage"] = null 
+		pagination.previousPage = null 
 	}
-	pagination["nextPage"] = null	
+	pagination.nextPage = null	
 	return pagination
 }
 // Check if our results contain a primary color
