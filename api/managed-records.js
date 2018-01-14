@@ -60,7 +60,7 @@ function getClosedPrimaryCount(results) {
 }
 // Handle pagination conditions, return an object with pagination info
 function getPagination(pageResults, allResults, page) {
-	var pagination = {}
+	let pagination = {}
 	if (pageResults.length) {	
 		handleNonEmptyPages(pageResults, allResults, pagination)
 	} else {
@@ -85,7 +85,7 @@ function handleNonEmptyPages(pageResults, allResults, pagination) {
 	return pagination
 }
 // If there are no results
-function handleEmptyPages(pageResults, allResults, pagination, page, colors) {
+function handleEmptyPages(pageResults, allResults, pagination, page) {
 	const totalPages = Math.ceil(allResults.length/10)
 	if (page) { var pageRequested = page }
 	if (pageRequested && pageRequested === (totalPages + 1)) {
