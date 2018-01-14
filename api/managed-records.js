@@ -3,10 +3,12 @@ import URI from "urijs";
 
 window.path = "http://localhost:3000/records"
 
+// Entry
 function retrieve({page, colors} = {}) {
 	const fetchPromises = fetchLinkResults(page, colors)
 	return promiseChain(fetchPromises, page)
 }
+// Resolve and then transform fetched results
 function promiseChain(fetchPromises, page) {
 	const promises = Promise.all(fetchPromises)
 		.then(fetchPromises => handleResults(fetchPromises, page))
@@ -16,9 +18,10 @@ function promiseChain(fetchPromises, page) {
 		})
 	return promises
 }
+// Get URLs and promised results for our two endpoints
 function fetchLinkResults(page, colors) {
 	const endpoints = getEndpointLinks(page, colors)
-	const fetchedResults = endpoints.map((link, index) => {
+	const fetchedResults = endpoints.map(link => {
 		return fetch(link)
 			.then(response => response.json())
 			.catch(error => {
@@ -27,15 +30,17 @@ function fetchLinkResults(page, colors) {
 	})
 	return fetchedResults
 }
+// Pass JSON results into our data processing function
 function handleResults(results, page) {
 	let pageResults, allResults
 	[pageResults, allResults] = results
-	const transformedResults = transform(pageResults, allResults, page)
+	const transformedResults = transformResults(pageResults, allResults, page)
 	return transformedResults	
 }
-function transform(pageResults, allResults, page) {
+// Process data and convert it into our final object
+function transformResults(pageResults, allResults, page) {
 	const finalObject = {}	
-	finalObject.ids = getPageResults(pageResults)
+	finalObject.ids = pageResults.map(item => item.id)
 	finalObject.open = getOpenResults(pageResults)
 	finalObject.closedPrimaryCount = getClosedPrimaryCount(pageResults)
 	const pagination = getPagination(pageResults, allResults, page)
@@ -43,15 +48,12 @@ function transform(pageResults, allResults, page) {
 	({previousPage: finalObject.previousPage, nextPage: finalObject.nextPage} = pagination)
 	return finalObject
 }
-function getPageResults(pageResults) {
-	return pageResults.map(item => item.id)
-}
 function getOpenResults(results) {
 	const openResults = results.filter(item => item.disposition === "open")
 	openResults.map(item => item.isPrimary = testPrimary(item) ? true : false)
 	return openResults
 }
-// Check number of closed results containing primary colors
+// Check number of closed results with primary colors
 function getClosedPrimaryCount(results) {
 	const closedPrimaryColorResults = results.filter(item => item.disposition === "closed" && testPrimary(item) === true)
 	return closedPrimaryColorResults.length
@@ -85,9 +87,8 @@ function handleNonEmptyPages(pageResults, allResults, pagination) {
 // If there are no results
 function handleEmptyPages(pageResults, allResults, pagination, page, colors) {
 	const totalPages = Math.ceil(allResults.length/10)
-	let pageRequested
-	if (page) pageRequested = page
-	if (pageRequested === (totalPages + 1)) {
+	if (page) { var pageRequested = page }
+	if (pageRequested && pageRequested === (totalPages + 1)) {
 		pagination.previousPage = totalPages 
 	} else {
 		pagination.previousPage = null 
@@ -112,7 +113,6 @@ function constructBaseEndpoint(page, colors) {
 	baseEndpoint.setSearch("limit", 10)
 	if (page !== undefined) baseEndpoint.setSearch("offset", (page - 1) * 10)
 	if (colors !== undefined) baseEndpoint.setSearch("color[]", colors)		
-
 	return baseEndpoint
 }
 // Take our initial endpoint and increase the limit so we can retrieve all results
